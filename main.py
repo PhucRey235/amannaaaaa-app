@@ -13,7 +13,7 @@ ADMIN_PIN = "111222"
 st.markdown("""
 <style>
     body { background-color: #f4f4f9; color: #333; font-size: 16px; }
-    section[data-testid="stSidebar"] { background-color: #003366; color: white !important; max-width: 244px;}
+    section[data-testid="stSidebar"] { background-color: #003366; color: white !important;}
     section[data-testid="stSidebar"] * { color: white !important; }
     .stSidebar .stTextInput input { color: black !important; background-color: white !important; }
     .stSidebar .stTextInput input::placeholder { color: white !important; }
