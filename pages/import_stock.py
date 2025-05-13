@@ -176,7 +176,7 @@ def show_material_page():
                             })
 
                     st.success(f"✅ Đã thêm vật liệu {new_material_no} và cập nhật lịch sử nhập kho.")
-                    st.rerun()
+                    # st.rerun()
                 else:
                     st.error("⚠️ Vui lòng nhập đầy đủ thông tin và chọn loại máy hợp lệ.")
 

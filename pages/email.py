@@ -1,6 +1,7 @@
 import smtplib
 from email.mime.text import MIMEText
 import streamlit as st
+
 def send_email(to_email, subject, body):
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
