@@ -36,7 +36,7 @@ def show_export_stock():
                     SUM(ie.quantity) AS total_quantity
                 FROM import_export ie
                 JOIN spare_parts sp ON ie.part_id = sp.material_no
-                WHERE DATE(ie.date) = %s
+                WHERE DATE(ie.date) = ?
                 GROUP BY ie.date, ie.part_id, sp.material_no, sp.description
             ''', conn, params=(today_str,))
 

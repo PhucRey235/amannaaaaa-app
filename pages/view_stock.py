@@ -13,17 +13,18 @@ def show_view_stock():
     # Kết nối cơ sở dữ liệu
     engine = get_engine()
     with engine.begin() as conn:
+        # Sửa chỗ ni 
         df_stock = pd.read_sql(''' 
-        SELECT 
-            sp.material_no, sp.part_no, sp.description, 
-            mt.machine AS machine_type, 
-            sp.bin, sp.cost_center, 
-            sp.price, sp.stock, sp.safety_stock, 
-            sp.safety_stock_check, sp.image_url,
-            sp.import_date, sp.export_date,
-            DATEDIFF(IFNULL(sp.export_date, CURDATE()), sp.import_date) AS storage_days
-        FROM spare_parts sp
-        JOIN machine_type mt ON sp.machine_type_id = mt.id
+            SELECT 
+                sp.material_no, sp.part_no, sp.description, 
+                mt.machine AS machine_type, 
+                sp.bin, sp.cost_center, 
+                sp.price, sp.stock, sp.safety_stock, 
+                sp.safety_stock_check, sp.image_url,
+                sp.import_date, sp.export_date,
+                (COALESCE(sp.export_date, DATE('now')) - sp.import_date) AS storage_days
+            FROM spare_parts sp
+            JOIN machine_type mt ON sp.machine_type_id = mt.id
         ''', conn)
         
         # Tính tổng tồn kho và tổng giá trị của tồn kho
