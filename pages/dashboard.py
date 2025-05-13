@@ -85,6 +85,7 @@ def show_dashboard():
 
         st.altair_chart(chart_imports, use_container_width=True)
 
+    # Sửa chỗ ni
     with col2:
         st.markdown("<h3 style='text-align: center;'>Xuất kho theo ngày</h3>", unsafe_allow_html=True)
 

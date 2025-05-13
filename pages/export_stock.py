@@ -73,13 +73,7 @@ def show_export_stock():
 
                 # Vẽ biểu đồ cột với seaborn
                 fig, ax = plt.subplots(figsize=(10, 4))
-                sns.barplot(
-                    x="material_no", 
-                    y="total_quantity", 
-                    data=stock_data, 
-                    ax=ax, 
-                    palette='Blues'
-                )
+                sns.barplot(x="material_no", y="total_quantity", data=stock_data, ax=ax, hue="material_no", palette='Blues', legend=False)
 
                 ax.set_title(f"Số lượng xuất kho ngày {today_str}", fontsize=12)
                 ax.set_xlabel("Mã vật tư", fontsize=10)
@@ -136,7 +130,8 @@ def show_export_stock():
 
         # Vẽ biểu đồ cột
         fig, ax = plt.subplots(figsize=(10, 4))
-        sns.barplot(data=cost_by_day, x='export_day', y='export_cost', ax=ax, palette='Blues')
+        sns.barplot(data=cost_by_day, x='export_day', y='export_cost', ax=ax, hue='export_day', palette='Blues', legend=False)
+        
         ax.set_title("Chi phí xuất kho theo ngày", fontsize=12)
         ax.set_xlabel("Ngày", fontsize=10)
         ax.set_ylabel("Chi phí (VND)", fontsize=10)
