@@ -87,17 +87,22 @@ def show_dashboard():
 
     with col2:
         st.markdown("<h3 style='text-align: center;'>Xuất kho theo ngày</h3>", unsafe_allow_html=True)
+
         with engine.begin() as conn:
             df_export_history = pd.read_sql("SELECT date, quantity FROM import_export WHERE im_ex_flag = 0", conn)
 
         df_export_history['date'] = pd.to_datetime(df_export_history['date']).dt.date
-        daily_exports = df_export_history.groupby('date')['quantity'].sum().reset_index()
-        daily_exports = daily_exports.sort_values('date')
+
+        daily_exports = (
+            df_export_history.groupby('date')['quantity'].sum()
+            .reset_index()
+            .sort_values('date')
+        )
         daily_exports['date'] = daily_exports['date'].apply(lambda x: x.strftime('%d/%m/%Y'))
 
         chart_exports = alt.Chart(daily_exports).mark_bar(color="#F58518", cornerRadius=5).encode(
             x=alt.X('date:N', title='Ngày', axis=alt.Axis(labelAngle=0)),
-            y=alt.Y('quantity:Q', title='Số lượng xuất'), 
+            y=alt.Y('quantity:Q', title='Số lượng xuất'),
             tooltip=['date:N', 'quantity:Q']
         ).properties(width=350, height=500)
 
