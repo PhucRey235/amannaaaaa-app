@@ -1,17 +1,17 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-from database import get_engine
+from database import get_client
 import altair as alt
 
 # Hàm load các loại máy từ cơ sở dữ liệu
 def load_machine_types():
-    engine = get_engine()
+    engine = get_client()
     return pd.read_sql("SELECT id, machine FROM machine_type", engine)
 
 # Hàm load dữ liệu spare parts từ cơ sở dữ liệu
 def load_spare_parts():
-    engine = get_engine()
+    engine = get_client()
     return pd.read_sql("SELECT * FROM spare_parts", engine)
 
 def manage_spare_parts():
@@ -136,7 +136,7 @@ def manage_spare_parts():
                     return
 
                 # Cập nhật thông tin vật liệu và trừ số lượng xuất kho
-                with get_engine().begin() as conn:
+                with get_client().begin() as conn:
                     # Cập nhật dữ liệu trong cơ sở dữ liệu
                     conn.execute(text(""" 
                         UPDATE spare_parts

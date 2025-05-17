@@ -1,59 +1,61 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from sqlalchemy import text
-from database import get_engine
+from database import get_client
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 def show_export_stock():
     st.markdown("<h1 style='text-align: center;'>📦 Export Stock</h1>", unsafe_allow_html=True)
-    engine = get_engine()
+    client = get_client()
 
     # ====== Load dữ liệu cơ bản ======
-    with engine.begin() as conn:
-        spare_parts = pd.read_sql('SELECT material_no, description, stock FROM spare_parts', conn)
-        employees = pd.read_sql('SELECT amann_id, name FROM employees', conn)
-        machine_data = pd.read_sql(''' 
-            SELECT m.name AS machine_name, mp.mc_pos AS mc_pos_id, mp.mc_pos 
-            FROM machine m 
-            JOIN machine_pos mp ON m.group_mc_id = mp.mc_id
-        ''', conn)
+    spare_parts_query = 'SELECT material_no, description, stock FROM spare_parts'
+    spare_parts = client.query(spare_parts_query).to_dataframe()
+    employees_query = 'SELECT amann_id, name FROM employees'
+    employees = client.query(employees_query).to_dataframe()
+    machine_data_query = """
+        SELECT m.name AS machine_name, mp.mc_pos AS mc_pos_id, mp.mc_pos 
+        FROM machine m 
+        JOIN machine_pos mp ON m.group_mc_id = mp.mc_id
+    """
+    machine_data = client.query(machine_data_query).to_dataframe()
 
     # ====== Chọn ngày cần thống kê ======
     selected_date = st.date_input("📅 Chọn ngày để xem thống kê xuất kho", datetime.today())
     today_str = selected_date.strftime('%Y-%m-%d')
 
     # ====== Hàm lấy dữ liệu xuất kho và chi phí xuất kho ======
-    def fetch_export_data():
+    def fetch_export_data(today_str):
         # Lấy dữ liệu xuất kho
-        with engine.begin() as conn:
-            export_stats = pd.read_sql(''' 
-                SELECT 
-                    ie.date, 
-                    ie.part_id, 
-                    sp.material_no, 
-                    sp.description, 
-                    SUM(ie.quantity) AS total_quantity
-                FROM import_export ie
-                JOIN spare_parts sp ON ie.part_id = sp.material_no
-                WHERE DATE(ie.date) = ?
-                GROUP BY ie.date, ie.part_id, sp.material_no, sp.description
-            ''', conn, params=(today_str,))
+        export_stats_query = f"""
+            SELECT 
+                ie.date, 
+                ie.part_id, 
+                sp.material_no, 
+                sp.description, 
+                SUM(ie.quantity) AS total_quantity
+            FROM import_export ie
+            JOIN spare_parts sp ON ie.part_id = sp.material_no
+            WHERE DATE(ie.date) = '{today_str}'
+            GROUP BY ie.date, ie.part_id, sp.material_no, sp.description
+        """
+        export_stats = client.query(export_stats_query).to_dataframe()
 
         # Lấy chi phí xuất kho
-        with engine.begin() as conn:
-            cost_data = pd.read_sql(''' 
-                SELECT 
-                    DATE(ie.date) AS export_day,
-                    ie.part_id,
-                    SUM(ie.quantity) AS total_qty,
-                    sp.price
-                FROM import_export ie
-                JOIN spare_parts sp ON ie.part_id = sp.material_no
-                WHERE ie.im_ex_flag = 0
-                GROUP BY export_day, ie.part_id, sp.price
-                ORDER BY export_day
-            ''', conn)
+        cost_data_query = """
+            SELECT 
+                DATE(ie.date) AS export_day,
+                ie.part_id,
+                SUM(ie.quantity) AS total_qty,
+                sp.price
+            FROM import_export ie
+            JOIN spare_parts sp ON ie.part_id = sp.material_no
+            WHERE ie.im_ex_flag = False
+            GROUP BY export_day, ie.part_id, sp.price
+            ORDER BY export_day
+        """
+        cost_data = client.query(cost_data_query).to_dataframe()
 
         return export_stats, cost_data
 
@@ -164,7 +166,7 @@ def show_export_stock():
 
         # Ghi chú giá trị lên các cột
         for p in ax.patches:
-            ax.annotate(f"{p.get_height():,.0f}", (p.get_x() + p.get_width() / 2., p.get_height()), 
+            ax.annotate(f"{p.get_height():.0f}", (p.get_x() + p.get_width() / 2., p.get_height()), 
                         ha='center', va='center', fontsize=8, color='black', xytext=(0, 5), 
                         textcoords='offset points')
 
@@ -172,7 +174,7 @@ def show_export_stock():
         st.pyplot(fig)
 
     # ====== Gọi hàm chính và cập nhật biểu đồ ======
-    export_stats, cost_data = fetch_export_data()
+    export_stats, cost_data = fetch_export_data(today_str)
 
     # Hiển thị các biểu đồ
     col1, col2 = st.columns(2)
@@ -182,8 +184,6 @@ def show_export_stock():
 
     with col2:
         show_export_cost_chart(cost_data)  # Truyền dữ liệu chi phí vào
-
-
 
     # ====== Tìm kiếm linh kiện ======
     search = st.text_input("🔍 Tìm linh kiện theo Material_No/Description")
@@ -231,41 +231,30 @@ def show_export_stock():
         if not reason and not is_foc:
             st.error("❌ Bạn phải nhập lý do xuất kho!")
         else:
-            with engine.begin() as conn:
-                # Kiểm tra số lượng tồn kho
-                stock = conn.execute(text("SELECT stock FROM spare_parts WHERE material_no = :material_no"),
-                                     {"material_no": part_id}).scalar()
-                if not is_foc and quantity > stock:
-                    st.error("❌ Không đủ hàng trong kho!")
-                else:
-                    # Ghi vào bảng xuất kho
-                    conn.execute(text("""
-                        INSERT INTO import_export (part_id, quantity, mc_pos_id, empl_id, date, reason, im_ex_flag)
-                        VALUES (:part_id, :quantity, :mc_pos_id, :empl_id, :date, :reason, 0)
-                    """), {
-                        "part_id": part_id,
-                        "quantity": quantity,
-                        "mc_pos_id": mc_pos_id,
-                        "empl_id": empl_id,
-                        "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        "reason": reason
-                    })
+            #Kiểm tra số lượng tồn kho
+            query_check_stock = f"SELECT stock FROM spare_parts WHERE material_no = '{part_id}'"
+            stock_df = client.query(query_check_stock).to_dataframe()
+            if not stock_df.empty:
+                stock = int(stock_df['stock'].iloc[0])
+            else:
+                stock = 0
 
-                    # Cập nhật kho
-                    if not is_foc:
-                        conn.execute(text("""
-                            UPDATE spare_parts 
-                            SET stock = stock - :q, export_date = :date 
-                            WHERE material_no = :material_no
-                        """), {"q": quantity, "material_no": part_id, "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
-                    else:
-                        conn.execute(text("""
-                            UPDATE spare_parts 
-                            SET export_date = :date 
-                            WHERE material_no = :material_no
-                        """), {"material_no": part_id, "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+            if not is_foc and quantity > stock:
+                st.error("❌ Không đủ hàng trong kho!")
+            else:
+                #Ghi vào bảng xuất kho
+                insert_query = f"""INSERT INTO import_export (part_id, quantity, mc_pos_id, empl_id, date, reason, im_ex_flag) VALUES ('{part_id}', {quantity}, {mc_pos_id}, '{empl_id}', '{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}', '{reason}', 0)"""
+                client.query(insert_query).result()
+
+                #Cập nhật kho
+                if not is_foc:
+                    update_query = f"""UPDATE spare_parts SET stock = stock - {quantity}, export_date = '{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}' WHERE material_no = '{part_id}'"""
+                    client.query(update_query).result()
+                else:
+                    update_query = f"""UPDATE spare_parts SET export_date = '{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}' WHERE material_no = '{part_id}'"""
+                    client.query(update_query).result()
 
             st.success("✅ Đã xuất kho thành công!")
 
-            # Yêu cầu làm mới giao diện và cập nhật lại biểu đồ
+            #Yêu cầu làm mới giao diện và cập nhật lại biểu đồ
             st.rerun()

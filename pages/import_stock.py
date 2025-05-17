@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from database import get_engine
+from database import get_client
 from datetime import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -10,7 +10,7 @@ import seaborn as sns
 
 def load_machine_types(engine):
     query = "SELECT id, machine FROM machine_type"
-    return pd.read_sql_query(text(query), engine)
+    return pd.read_sql_query(query, engine)
 
 def load_spare_parts(engine):
     query = """
@@ -19,27 +19,27 @@ def load_spare_parts(engine):
         FROM spare_parts sp
         JOIN machine_type mt ON sp.machine_type_id = mt.id
     """
-    return pd.read_sql_query(text(query), engine)
+    return pd.read_sql_query(query, engine)
 
 def load_employees(engine):
     query = "SELECT amann_id, name FROM employees"
-    return pd.read_sql_query(text(query), engine)
+    return pd.read_sql_query(query, engine)
 
 def load_import_stock_data(engine):
     query = """
     SELECT DATE(ie.date) AS import_date, sp.material_no, SUM(ie.quantity) AS total_quantity_imported
     FROM import_export ie
     JOIN spare_parts sp ON ie.part_id = sp.material_no
-    WHERE ie.im_ex_flag = 1
+    WHERE ie.im_ex_flag = True
     GROUP BY DATE(ie.date), sp.material_no
     """
-    return pd.read_sql_query(text(query), engine)
+    return pd.read_sql_query(query, engine)
 
 # ---------------------- GIAO DIỆN TRANG VẬT LIỆU ------------------------
 
 def show_material_page():
     st.markdown("<h1 style='text-align: center;'>Import Stock</h1>", unsafe_allow_html=True)
-    engine = get_engine()
+    engine = get_client()
 
     spare_parts = load_spare_parts(engine)
     machine_types = load_machine_types(engine)

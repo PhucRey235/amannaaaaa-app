@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
 from sqlalchemy import text
-from database import get_engine
+from database import get_client
 
 def load_machines(engine, selected_group, selected_pos, search_name):
     query = """
@@ -18,7 +18,7 @@ def load_machines(engine, selected_group, selected_pos, search_name):
     ORDER BY m.name DESC
     LIMIT 1000
     """
-    df = pd.read_sql_query(text(query), engine, params={
+    df = pd.read_sql_query(query, engine, params={
         "group_name": selected_group,
         "pos": selected_pos,
         "search_name": f"%{search_name}%"
@@ -27,7 +27,7 @@ def load_machines(engine, selected_group, selected_pos, search_name):
 
 def show_machine_page():
     st.markdown("<h1 style='text-align: center;'>🔧 Machine Management</h1>", unsafe_allow_html=True)
-    engine = get_engine()
+    engine = get_client()
 
     with engine.connect() as conn:
         group_list = conn.execute(text("SELECT mc_name FROM group_mc")).scalars().all()

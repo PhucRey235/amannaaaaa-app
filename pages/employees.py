@@ -1,15 +1,14 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import text
-from database import get_engine  # Ensure you have a database.py with get_engine()
+from database import get_client
 import datetime
 import plotly.express as px
 
 # Load employee data from the database
 def load_employees():
-    engine = get_engine()
-    with engine.begin() as conn:
-        return pd.read_sql("SELECT amann_id, name, title, level, active, birthday, start_date, address, phone_number, email, gender FROM employees", conn)
+    client = get_client()
+    query = "SELECT amann_id, name, title, level, active, birthday, start_date, address, phone_number, email, gender FROM employees"
+    return client.query(query).to_dataframe()
 
 def show_employees():
     st.title("Employee Management")
@@ -191,21 +190,15 @@ def show_employees():
             submit_update = st.button("Update Information")
             if submit_update:
                 try:
-                    engine = get_engine()
-                    with engine.connect() as conn:
-                        conn.execute(text(""" 
-                            UPDATE employees
-                            SET name = :name, title = :title, level = :level, active = :active
-                            WHERE amann_id = :amann_id
-                        """), {
-                            "name": name,
-                            "title": title,
-                            "level": level,
-                            "active": "1" if active == "Active" else "0",
-                            "amann_id": employee_id
-                        })
-                        conn.commit()
-                        st.success(f"Employee '{name}' information updated successfully!")
+                    client = get_client()
+                    query = f"""
+                        UPDATE employees
+                        SET name = '{name}', title = '{title}', level = '{level}', active = {'1' if active == 'Active' else '0'}
+                        WHERE amann_id = '{employee_id}'
+                    """
+                    job = client.query(query)
+                    job.result()  # Wait for the query to complete
+                    st.success(f"Employee '{name}' information updated successfully!")
                 except Exception as e:
                     st.error(f"Update error: {str(e)}")
 
@@ -234,35 +227,22 @@ def show_employees():
                     st.error("Amann ID and Full Name are required!")
                 else:
                     try:
-                        engine = get_engine()
-                        with engine.connect() as conn:
-                            existing = conn.execute(
-                                text("SELECT COUNT(*) FROM employees WHERE amann_id = :amann_id"),
-                                {"amann_id": amann_id.strip()}
-                            ).scalar()
+                        client = get_client()
+                        # Check if Amann ID already exists
+                        query_check = f"SELECT COUNT(*) FROM employees WHERE amann_id = '{amann_id.strip()}'"
+                        existing = client.query(query_check).to_dataframe().iloc[0][0]
 
-                            if existing > 0:
-                                st.error("Amann ID already exists!")
-                            else:
-                                conn.execute(text(""" 
-                                    INSERT INTO employees (amann_id, name, title, level, active, birthday, start_date, address, phone_number, email, gender)
-                                    VALUES (:amann_id, :name, :title, :level, :active, :birthday, :start_date, :address, :phone_number, :email, :gender)
-                                """), {
-                                    "amann_id": amann_id.strip(),
-                                    "name": name.strip(),
-                                    "title": title.strip(),
-                                    "level": level.strip(),
-                                    "active": active,
-                                    "birthday": birthday,
-                                    "start_date": start_date,
-                                    "address": address,
-                                    "phone_number": phone_number,
-                                    "email": email,
-                                    "gender": gender
-                                })
-
-                                conn.commit()
-                                st.success(f"Employee '{name.strip()}' added successfully!")
-                                st.rerun()
+                        if existing > 0:
+                            st.error("Amann ID already exists!")
+                        else:
+                            # Insert new employee
+                            query = f"""
+                                INSERT INTO employees (amann_id, name, title, level, active, birthday, start_date, address, phone_number, email, gender)
+                                VALUES ('{amann_id.strip()}', '{name.strip()}', '{title.strip()}', '{level.strip()}', '{active}', '{birthday}', '{start_date}', '{address}', '{phone_number}', '{email}', '{gender}')
+                            """
+                            job = client.query(query)
+                            job.result()
+                            st.success(f"Employee '{name.strip()}' added successfully!")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Add employee error: {str(e)}")

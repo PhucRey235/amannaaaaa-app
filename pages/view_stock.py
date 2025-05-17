@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-from database import get_engine
+from database import get_client
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 from st_aggrid.shared import JsCode
 import plotly.express as px
@@ -11,50 +11,61 @@ def show_view_stock():
     st.markdown("<h1 style='text-align: center;'>View Stock</h1>", unsafe_allow_html=True)
 
     # Kết nối cơ sở dữ liệu
-    engine = get_engine()
-    with engine.begin() as conn:
-        # Sửa chỗ ni 
-        df_stock = pd.read_sql(''' 
-            SELECT 
-                sp.material_no, sp.part_no, sp.description, 
-                mt.machine AS machine_type, 
-                sp.bin, sp.cost_center, 
-                sp.price, sp.stock, sp.safety_stock, 
-                sp.safety_stock_check, sp.image_url,
-                sp.import_date, sp.export_date,
-                (COALESCE(sp.export_date, DATE('now')) - sp.import_date) AS storage_days
-            FROM spare_parts sp
-            JOIN machine_type mt ON sp.machine_type_id = mt.id
-        ''', conn)
-        
-        # Tính tổng tồn kho và tổng giá trị của tồn kho
-        total_stock = int(df_stock['stock'].sum())
-        total_value = int((df_stock['stock'] * df_stock['price']).sum())
+    client = get_client()
 
-        col1, col2 = st.columns(2)
+    query = ''' 
+        SELECT
+            sp.material_no,
+            sp.part_no,
+            sp.description,
+            mt.machine AS machine_type,
+            sp.bin,
+            sp.cost_center,
+            sp.price,
+            sp.stock,
+            sp.safety_stock,
+            sp.safety_stock_check,
+            sp.image_url,
+            sp.import_date,
+            sp.export_date,
+            TIMESTAMP_DIFF(COALESCE(sp.export_date, CURRENT_TIMESTAMP()), sp.import_date, DAY) AS storage_days
+        FROM
+            `{}.spare_parts` sp
+        JOIN
+            `{}.machine_type` mt ON sp.machine_type_id = mt.id
+    '''.format(client.project, client.project)
+    
+    query_job = client.query(query)
+    df_stock = query_job.to_dataframe()
 
-        # Hiển thị tổng tồn kho và giá trị tồn kho
-        with col1:
-            st.markdown(
-                f"""
-                <div style="border:1px solid #ccc; border-radius:7px; padding:5px; text-align:center; background-color:#008080;">
-                    <h4>Total Stock</h4>
-                    <p style="font-size:24px; font-weight:bold;">{total_stock}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+    # Tính tổng tồn kho và tổng giá trị của tồn kho
+    total_stock = int(df_stock['stock'].sum())
+    total_value = int((df_stock['stock'] * df_stock['price']).sum())
 
-        with col2:
-            st.markdown(
-                f"""
-                <div style="border:1px solid #ccc; border-radius:7px; padding:5px; text-align:center; background-color:#008080;">
-                    <h4>Total Value</h4>
-                    <p style="font-size:24px; font-weight:bold;">{total_value:,.0f} đ</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+    col1, col2 = st.columns(2)
+
+    # Hiển thị tổng tồn kho và giá trị tồn kho
+    with col1:
+        st.markdown(
+            f"""
+            <div style="border:1px solid #ccc; border-radius:7px; padding:5px; text-align:center; background-color:#008080;">
+                <h4>Total Stock</h4>
+                <p style="font-size:24px; font-weight:bold;">{total_stock}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    with col2:
+        st.markdown(
+            f"""
+            <div style="border:1px solid #ccc; border-radius:7px; padding:5px; text-align:center; background-color:#008080;">
+                <h4>Total Value</h4>
+                <p style="font-size:24px; font-weight:bold;">{total_value:,.0f} đ</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     # Lọc và tìm kiếm dữ liệu
     machine_types = df_stock['machine_type'].dropna().unique()

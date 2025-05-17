@@ -1,16 +1,21 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-from database import get_engine
+from database import get_client
 
 def show_dashboard():
     st.markdown("<h1 style='text-align: center;'>Warehouse Dashboard</h1>", unsafe_allow_html=True)
 
-    engine = get_engine()
-    with engine.begin() as conn:
-        df_stock = pd.read_sql("SELECT material_no, description, stock, price, safety_stock FROM spare_parts", conn)
-        total_import = pd.read_sql("SELECT SUM(quantity) AS total_import FROM import_export WHERE im_ex_flag = 1", conn).iloc[0]['total_import']
-        total_export = pd.read_sql("SELECT SUM(quantity) AS total_export FROM import_export WHERE im_ex_flag = 0", conn).iloc[0]['total_export']
+    client = get_client()
+    
+    query_stock = "SELECT material_no, description, stock, price, safety_stock FROM spare_parts"
+    df_stock = client.query(query_stock).to_dataframe()
+    
+    query_import = "SELECT SUM(quantity) AS total_import FROM import_export WHERE im_ex_flag = True"
+    total_import = client.query(query_import).to_dataframe().iloc[0]['total_import']
+    
+    query_export = "SELECT SUM(quantity) AS total_export FROM import_export WHERE im_ex_flag = False"
+    total_export = client.query(query_export).to_dataframe().iloc[0]['total_export']
 
     total_items_in_stock = int(df_stock['stock'].sum())
     total_import = int(total_import) if total_import is not None else 0
@@ -69,8 +74,9 @@ def show_dashboard():
 
     with col1:
         st.markdown("<h3 style='text-align: center;'>Nhập kho theo ngày</h3>", unsafe_allow_html=True)
-        with engine.begin() as conn:
-            df_import_history = pd.read_sql("SELECT date, quantity FROM import_export WHERE im_ex_flag = 1", conn)
+        
+        query_import_history = "SELECT date, quantity FROM import_export WHERE im_ex_flag = True"
+        df_import_history = client.query(query_import_history).to_dataframe()
 
         df_import_history['date'] = pd.to_datetime(df_import_history['date']).dt.date
         daily_imports = df_import_history.groupby('date')['quantity'].sum().reset_index()
@@ -89,8 +95,8 @@ def show_dashboard():
     with col2:
         st.markdown("<h3 style='text-align: center;'>Xuất kho theo ngày</h3>", unsafe_allow_html=True)
 
-        with engine.begin() as conn:
-            df_export_history = pd.read_sql("SELECT date, quantity FROM import_export WHERE im_ex_flag = 0", conn)
+        query_export_history = "SELECT date, quantity FROM import_export WHERE im_ex_flag = False"
+        df_export_history = client.query(query_export_history).to_dataframe()
 
         df_export_history['date'] = pd.to_datetime(df_export_history['date']).dt.date
 
@@ -132,4 +138,4 @@ def show_dashboard():
         ]
     ).properties(width=800, height=400)
 
-    st.altair_chart(chart_top10_vertical, use_container_width=True)   
+    st.altair_chart(chart_top10_vertical, use_container_width=True)
